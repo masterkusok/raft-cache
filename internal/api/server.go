@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -31,10 +32,17 @@ func (s *Server) Start(port string) {
 
 	r.Post("/api/v1/key/{key}/{value}", s.handleSet)
 	r.Post("/api/v1/node", s.handleJoin)
-	r.Get("/api/v1/key/{key}/{value}", s.handleGet)
-	r.Delete("/api/v1/key/{key}/{value}", s.handleDelete)
 
-	http.ListenAndServe(port, r)
+	r.Get("/api/v1/key/{key}", s.handleGet)
+
+	r.Delete("/api/v1/key/{key}", s.handleDelete)
+	r.Delete("/api/v1/node/{id}", s.handleRemoveNode)
+
+	go func() {
+		if err := http.ListenAndServe(port, r); err != nil {
+			log.Fatalf("HTTP server: %v", err)
+		}
+	}()
 }
 
 func (s *Server) handleSet(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +100,17 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Printf("joined successfully")
+}
+
+func (s *Server) handleRemoveNode(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("remove node\n")
+
+	id := chi.URLParam(r, "id")
+	if err := s.node.RemoveNodeFromCluster(id); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	fmt.Printf("removed node successfully")
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {

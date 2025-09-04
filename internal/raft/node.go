@@ -1,10 +1,13 @@
 package raft
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -22,12 +25,17 @@ type Node struct {
 	fsm     *fsm.FSM
 	storage store.Storage
 	raft    *raft.Raft
+
+	nodeID       string
+	leaderAPIUrl string
 }
 
-func NewNode(storage store.Storage, fsm *fsm.FSM) *Node {
+func NewNode(storage store.Storage, fsm *fsm.FSM, leaderUrl, nodeID string) *Node {
 	return &Node{
-		storage: storage,
-		fsm:     fsm,
+		storage:      storage,
+		fsm:          fsm,
+		leaderAPIUrl: leaderUrl,
+		nodeID:       nodeID,
 	}
 }
 
@@ -153,5 +161,52 @@ func (n *Node) applyCommand(cmd command.Command) error {
 		return fmt.Errorf("call apply: %w", err)
 	}
 
+	return nil
+}
+
+func (n *Node) Shutdown(ctx context.Context) error {
+	if n.IsLeader() {
+		if err := n.raft.LeadershipTransfer().Error(); err != nil {
+			return fmt.Errorf("transfer leadership: %w", err)
+		}
+	}
+
+	if err := n.removeNode(ctx); err != nil {
+		return fmt.Errorf("remove node: %w", err)
+	}
+
+	if err := n.raft.Shutdown().Error(); err != nil {
+		return fmt.Errorf("shutdown raft node: %w", err)
+	}
+	return nil
+}
+
+func (n *Node) removeNode(ctx context.Context) error {
+	url := fmt.Sprintf("%s/api/v1/node/%s", n.leaderAPIUrl, n.nodeID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("create request")
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send delete request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("bad response")
+	}
+	return nil
+}
+
+func (n *Node) RemoveNodeFromCluster(nodeID string) error {
+	if n.raft.State() != raft.Leader {
+		return fmt.Errorf("only leader can remove nodes")
+	}
+
+	if err := n.raft.RemoveServer(raft.ServerID(nodeID), 0, 0).Error(); err != nil {
+		return fmt.Errorf("remove server: %v", err)
+	}
 	return nil
 }

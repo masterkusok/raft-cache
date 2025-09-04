@@ -1,7 +1,8 @@
 # RAFT-CACHE
 
 ## TODO
-- graceful-shutdown
+- graceful-shutdown +
+- валидация входных данных
 - логгирование
 - поправить api
 - поправить конфиги

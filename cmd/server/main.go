@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/masterkusok/raft-cache/internal/api"
@@ -49,7 +51,7 @@ func main() {
 	store := store.NewInMemoryStorage()
 	fsm := fsm.New(store)
 
-	node := raft.NewNode(store, fsm)
+	node := raft.NewNode(store, fsm, raftCfg.LeaderApiEndpoint, raftCfg.LocalID)
 
 	if err := node.Open(raftCfg); err != nil {
 		log.Fatalf("failed to start node: %v", err)
@@ -62,11 +64,25 @@ func main() {
 		if err := join(ctx, raftCfg.LeaderApiEndpoint, raftCfg.RaftAddr, raftCfg.LocalID); err != nil {
 			panic(err)
 		}
-
 	}
 
 	server := api.NewServer(node)
 	server.Start(raftCfg.Port)
+
+	terminate := make(chan os.Signal, 1)
+	signal.Notify(terminate, os.Interrupt)
+	<-terminate
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	if err := cleanup(ctx, node); err != nil {
+		fmt.Printf("failed to cleanup node: %v", err)
+		return
+	}
+
+	fmt.Printf("node stopped\n")
+
 }
 
 func join(ctx context.Context, endpoint, addr, nodeID string) error {
@@ -80,7 +96,8 @@ func join(ctx context.Context, endpoint, addr, nodeID string) error {
 		return fmt.Errorf("marshal join request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBuffer(data))
+	url := fmt.Sprintf("%s/api/v1/node", endpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -95,4 +112,8 @@ func join(ctx context.Context, endpoint, addr, nodeID string) error {
 	}
 
 	return nil
+}
+
+func cleanup(ctx context.Context, node *raft.Node) error {
+	return node.Shutdown(ctx)
 }
