@@ -17,6 +17,7 @@ import (
 	"github.com/masterkusok/raft-cache/internal/raft"
 	fsm "github.com/masterkusok/raft-cache/internal/raft/fsm"
 	"github.com/masterkusok/raft-cache/internal/store"
+	"github.com/sirupsen/logrus"
 )
 
 func getRaftraftCfg() raft.Config {
@@ -45,13 +46,19 @@ func getRaftraftCfg() raft.Config {
 	}
 }
 
+func initLogger() *logrus.Logger {
+	log := logrus.New()
+	log.Formatter = &logrus.JSONFormatter{}
+	return log
+}
+
 func main() {
 	raftCfg := getRaftraftCfg()
 
 	store := store.NewInMemoryStorage()
 	fsm := fsm.New(store)
-
-	node := raft.NewNode(store, fsm, raftCfg.LeaderApiEndpoint, raftCfg.LocalID)
+	logger := initLogger()
+	node := raft.NewNode(store, fsm, raftCfg.LeaderApiEndpoint, raftCfg.LocalID, logger)
 
 	if err := node.Open(raftCfg); err != nil {
 		log.Fatalf("failed to start node: %v", err)
@@ -66,7 +73,7 @@ func main() {
 		}
 	}
 
-	server := api.NewServer(node)
+	server := api.NewServer(node, logger)
 	server.Start(raftCfg.Port)
 
 	terminate := make(chan os.Signal, 1)

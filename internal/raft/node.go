@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"github.com/masterkusok/raft-cache/internal/command"
 	fsm "github.com/masterkusok/raft-cache/internal/raft/fsm"
 	"github.com/masterkusok/raft-cache/internal/store"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -28,18 +28,22 @@ type Node struct {
 
 	nodeID       string
 	leaderAPIUrl string
+
+	logger *logrus.Logger
 }
 
-func NewNode(storage store.Storage, fsm *fsm.FSM, leaderUrl, nodeID string) *Node {
+func NewNode(storage store.Storage, fsm *fsm.FSM, leaderUrl, nodeID string, logger *logrus.Logger) *Node {
 	return &Node{
 		storage:      storage,
 		fsm:          fsm,
 		leaderAPIUrl: leaderUrl,
 		nodeID:       nodeID,
+		logger:       logger,
 	}
 }
 
 func (n *Node) Open(config Config) error {
+	n.logger.Info("opening raft connection")
 	cfg := raft.DefaultConfig()
 	cfg.LocalID = raft.ServerID(config.LocalID)
 
@@ -77,8 +81,9 @@ func (n *Node) Open(config Config) error {
 		return nil
 	}
 
+	n.logger.Info("starting bootstrap server...")
 	if err := n.bootstrapCluster(config.LocalID, transport.LocalAddr()); err != nil {
-		log.Fatal("Bootstrap failed:", err)
+		n.logger.Fatal("Bootstrap failed:", err)
 	}
 	return nil
 }
