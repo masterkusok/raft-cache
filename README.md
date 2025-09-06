@@ -1,9 +1,9 @@
-# Raft Cache 🚀
+# Raft Cache 
 
 A distributed, highly-available, in-memory key-value store built with the Raft consensus algorithm in Go. This project is a practical implementation of a fault-tolerant state machine, perfect for learning and as a foundation for more complex distributed systems.
 
-[[https://img.shields.io/badge/Go-1.19%252B-00ADD8?logo=go]]
-[[https://img.shields.io/badge/Consensus-Raft-important]]
+![Golang badge](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go)
+![Raft-badge](https://img.shields.io/badge/Consensus-Raft-important)
 
 ## Overview
 Raft Cache is a simplified version of  in-memory distributed key-value database. It ensures strong consistency across a cluster of machines by using the Raft protocol to replicate all state changes. If a majority of nodes are available, your data is safe and consistent, even if some nodes fail.
@@ -23,7 +23,7 @@ This is a pet-project - well-structured implementation that demonstrates the cor
 ## Getting Started
 Prerequisites
 
--  Go 1.19+: Make sure you have Go installed on your system.
+-  Go 1.24+: Make sure you have Go installed on your system.
 
 - Git: To clone the repository.
 
